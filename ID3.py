@@ -62,13 +62,14 @@ def calcShannonEnt(dataset):
         shannonEnt -= prob * log(prob, 2)
     return shannonEnt
 
-def splitDataSet(dataset, axis, value):
+def splitDataSet(dataset, axis):
     retDataSet = []
     for featVec in dataset:
-        if featVec[axis] == value:
-            reducedFeatVec = featVec[:axis]
-            reducedFeatVec.extend(featVec[axis + 1:])
-            retDataSet.append(reducedFeatVec)
+        reducedFeatVec = featVec[:axis]
+        if (type(reducedFeatVec) != list):
+            reducedFeatVec = reducedFeatVec.tolist()
+        reducedFeatVec.extend(featVec[axis + 1:])
+        retDataSet.append(reducedFeatVec)
     return retDataSet #去掉value对应特征
 
 def chooseBestFeatureToSplit(dataset):
@@ -76,19 +77,54 @@ def chooseBestFeatureToSplit(dataset):
     baseEntropy = calcShannonEnt(dataset) #数据集的熵
     bestInfoGain = 0.0 #最佳信息增益
     bestFeature = -1 #最佳特征
+    bestDivision = 0.0 #最佳特征的分割位置
+    dataset = np.array(dataset)
+    features = dataset[:, :-1]  # 特征
+    # for i in range(numFeatures):
+    #     featList = [example[i] for example in dataset] #第i个特征的所有值
+    #     uniqueVals = set(featList) #获取单个特征
+    #     newEntropy = 0.0
+    #     for value in uniqueVals:
+    #         subDataSet = splitDataSet(dataset,i,value) #划分数据集
+    #         prob = len(subDataSet) / float(len(dataset)) #子集中概率
+    #         newEntropy += prob * calcShannonEnt(subDataSet)
+    #     infoGain = baseEntropy - newEntropy
+    #     if (infoGain > bestInfoGain):
+    #         bestInfoGain = infoGain
+    #         bestFeature = i
     for i in range(numFeatures):
-        featList = [example[i] for example in dataset] #第i个特征的所有值
-        uniqueVals = set(featList) #获取单个特征
-        newEntropy = 0.0
-        for value in uniqueVals:
-            subDataSet = splitDataSet(dataset,i,value) #划分数据集
-            prob = len(subDataSet) / float(len(dataset)) #子集中概率
-            newEntropy += prob * calcShannonEnt(subDataSet)
-        infoGain = baseEntropy - newEntropy
-        if (infoGain > bestInfoGain):
-            bestInfoGain = infoGain
+        feature = features[:, i]
+        divide = 0.0
+        info_gain = 0.0
+        for j in range(len(feature) - 1):
+            new_divide = (feature[j] + feature[j + 1]) / 2
+            left_subset = dataset[features[:, i] <= new_divide]
+            right_subset = dataset[features[:, i] > new_divide]
+            left_labels = left_subset[:, -1]
+            right_labels = right_subset[:, -1]
+
+            left_entropy = calcShannonEnt(left_subset)
+            right_entropy = calcShannonEnt(right_subset)
+
+            prob_left = len(left_subset) / len(dataset)
+            prob_right = len(right_subset) / len(dataset)
+
+            new_info_gain = baseEntropy - (prob_left * left_entropy + prob_right * right_entropy)
+            if j == 0:
+                info_gain = new_info_gain
+                divide = new_divide
+            elif new_info_gain > info_gain:
+                info_gain = new_info_gain
+                divide = new_divide
+        if i == 0:
+            bestInfoGain = info_gain
             bestFeature = i
-    return bestFeature #返回最佳特征
+            bestDivision = divide
+        elif info_gain > bestInfoGain:
+            bestInfoGain = info_gain
+            bestFeature = i
+            bestDivision = divide
+    return bestFeature, bestDivision #返回最佳特征，以及最佳特征的分割位置
 
 def majorityCnt(classList):
     classCount = {}
@@ -106,16 +142,19 @@ def createTree(dataSet, labels, featLabels):
         return classList[0]
     if len(dataSet[0]) == 1 or len(labels) == 0:  # 遍历完所有特征时返回出现次数最多的类标签
         return majorityCnt(classList)
-    bestFeat = chooseBestFeatureToSplit(dataSet)  # 选择最优特征
+    bestFeat, bestDivison = chooseBestFeatureToSplit(dataSet)  # 选择最优特征
     bestFeatLabel = labels[bestFeat]  # 最优特征的标签
     featLabels.append(bestFeatLabel)
     myTree = {bestFeatLabel: {}}  # 根据最优特征的标签生成树
     del (labels[bestFeat])  # 删除已经使用特征标签
-    featValues = [example[bestFeat] for example in dataSet]  # 得到训练集中所有最优特征的属性值
-    uniqueVals = set(featValues)  # 去掉重复的属性值
-    for value in uniqueVals:  # 遍历特征，创建决策树。
-        subLabels = labels[:]
-        myTree[bestFeatLabel][value] = createTree(splitDataSet(dataSet, bestFeat, value), subLabels, featLabels)
+    # featValues = [example[bestFeat] for example in dataSet]  # 得到训练集中所有最优特征的属性值
+    # uniqueVals = set(featValues)  # 去掉重复的属性值
+    # for value in uniqueVals:  # 遍历特征，创建决策树。
+    #     subLabels = labels[:]
+    #     myTree[bestFeatLabel][value] = createTree(splitDataSet(dataSet, bestFeat, value), subLabels, featLabels)
+    dataSet = np.array(dataSet)
+    myTree[bestFeatLabel]['<=' + str(bestDivison)] = createTree(splitDataSet(dataSet[dataSet[:, bestFeat] <= bestDivison], bestFeat), labels[:], featLabels)
+    myTree[bestFeatLabel]['>' + str(bestDivison)] = createTree(splitDataSet(dataSet[dataSet[:, bestFeat] > bestDivison], bestFeat), labels[:], featLabels)
     return myTree
 
 
@@ -141,13 +180,22 @@ if __name__ == '__main__':
     # featLabels = []
     # myTree = createTree(dataSet, labels, featLabels)
     # print(myTree)
+    # dataset = []
+    # division = []
+    # dataset, division = preprocessDataSet('traindata.txt')
+    # print(dataset)
+    # print(division)
     dataset = []
-    division = []
-    dataset, division = preprocessDataSet('traindata.txt')
+    file_path = 'traindata.txt'
+    with open(file_path, 'r') as file:
+        for line in file:
+            dataset.append([float(x) for x in line.strip().split('\t')])
+
+    dataset = np.array(dataset)
+
     print(dataset)
-    print(division)
     labels = ['a1', 'b2', 'c3', 'd4']
     labels1 = ['0', '1', '2']
     featLabels = []
-    # myTree = createTree(dataset, labels, featLabels)
-    # print(myTree)
+    myTree = createTree(dataset, labels, featLabels)
+    print(myTree)
