@@ -157,6 +157,44 @@ def createTree(dataSet, labels, featLabels, depth = 0, max_depth = 5):
     myTree[bestFeatLabel]['>' + str(bestDivison)] = createTree(splitDataSet(dataSet[dataSet[:, bestFeat] > bestDivison], bestFeat), labels[:], featLabels, depth+1, max_depth)
     return myTree
 
+def classify(tree, feature_labels, test_instance):
+    """
+    使用决策树对单个样本进行分类。
+    :param tree: 决策树 (myTree)。
+    :param feature_labels: 决策树对应的特征标签列表。
+    :param test_instance: 单个测试样本（特征值列表）。
+    :return: 预测的类别标签。
+    """
+    root = list(tree.keys())[0]  # 获取根节点
+    child_nodes = tree[root]  # 获取子节点
+    feature_index = feature_labels.index(root)  # 找到根节点对应的特征索引
+
+    for key in child_nodes.keys():
+        # 解析条件（例如 '<=2.5' 或 '>2.5'）
+        condition = key.split('<=') if '<=' in key else key.split('>')
+        threshold = float(condition[1])
+        if ('<=' in key and test_instance[feature_index] <= threshold) or ('>' in key and test_instance[feature_index] > threshold):
+            if isinstance(child_nodes[key], dict):
+                return classify(child_nodes[key], feature_labels, test_instance)  # 递归分类
+            else:
+                return child_nodes[key]  # 返回叶节点（类别标签）
+
+def calculate_accuracy(tree, feature_labels, test_data):
+    """
+    计算决策树在测试数据上的正确率。
+    :param tree: 决策树 (myTree)。
+    :param feature_labels: 决策树对应的特征标签列表。
+    :param test_data: 测试数据集（列表的列表，最后一列为真实标签）。
+    :return: 正确率（百分比）。
+    """
+    correct_predictions = 0
+    for instance in test_data:
+        true_label = instance[-1]  # 最后一列为真实标签
+        predicted_label = classify(tree, feature_labels, instance[:-1])  # 使用决策树预测
+        if predicted_label == true_label:
+            correct_predictions += 1
+    accuracy = (correct_predictions / len(test_data)) * 100
+    return accuracy
 
 if __name__ == '__main__':
     # dataSet = [[0, 0, 0, 0, 'no'],  # 数据集
@@ -199,3 +237,16 @@ if __name__ == '__main__':
     featLabels = []
     myTree = createTree(dataset, labels, featLabels)
     print(myTree)
+
+# 加载测试数据
+    test_data = []
+    with open('testdata.txt', 'r') as file:
+        for line in file:
+            test_data.append([float(x) for x in line.strip().split('\t')])
+
+    # 决策树对应的特征标签
+    feature_labels = ['a1', 'b2', 'c3', 'd4']
+
+    # 计算正确率
+    accuracy = calculate_accuracy(myTree, feature_labels, test_data)
+    print(f"正确率: {accuracy:.2f}%")
