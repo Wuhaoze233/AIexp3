@@ -93,7 +93,7 @@ def chooseBestFeatureToSplit(dataset):
     #         bestInfoGain = infoGain
     #         bestFeature = i
     for i in range(numFeatures):
-        feature = features[:, i]
+        feature = sorted(features[:, i])
         divide = 0.0
         info_gain = 0.0
         for j in range(len(feature) - 1):
