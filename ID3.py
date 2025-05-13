@@ -1,153 +1,126 @@
-import operator
-import matplotlib
-from math import log
+import pandas as pd
 import numpy as np
 
-def preprocessDataSet(file_path): #将数据集中原本的离散型变量更换为离散型变量
-    dataset = []
-    with open(file_path, 'r') as file:
-        for line in file:
-            dataset.append([float(x) for x in line.strip().split('\t')])
+#计算信息熵
+def cal_information_entropy(data):
+    data_label = data.iloc[:,-1]
+    label_class =data_label.value_counts() #总共有多少类
+    Ent = 0
+    for k in label_class.keys():
+        p_k = label_class[k]/len(data_label)
+        Ent += -p_k*np.log2(p_k)
+    return Ent
 
-    dataset = np.array(dataset)
-    features = dataset[:, :-1]  # 特征
-    labels = dataset[:, -1]  # 标签
+#对于离散特征a，计算给定数据属性a的信息增益
+def cal_information_gain(data, a):
+    Ent = cal_information_entropy(data)
+    feature_class = data[a].value_counts() #特征有多少种可能
+    gain = 0
+    for v in feature_class.keys():
+        weight = feature_class[v]/data.shape[0]
+        Ent_v = cal_information_entropy(data.loc[data[a] == v])
+        gain += weight*Ent_v
+    return Ent - gain
 
-    processed_feature = []
-    division = []
-    for i in range(features.shape[1]):
-        feature = np.sort(features[:, i])
-        divide = 0.0
-        info_gain = 0.0
-        for j in range(len(feature) - 1):
-            new_divide = (feature[j] + feature[j + 1]) / 2
-            left_subset = features[features[:, i] <= new_divide]
-            right_subset = features[features[:, i] > new_divide]
-            left_labels = labels[features[:, i] <= new_divide]
-            right_labels = labels[features[:, i] > new_divide]
+#对于连续特征b，计算给定数据属性b的信息增益
+def cal_information_gain_continuous(data, a):
+    n = len(data) #总共有n条数据，会产生n-1个划分点，选择信息增益最大的作为最优划分点
+    data_a_value = sorted(data[a].values) #从小到大排序
+    Ent = cal_information_entropy(data) #原始数据集的信息熵Ent(D)
+    select_points = []
+    for i in range(n-1):
+        val = (data_a_value[i] + data_a_value[i+1]) / 2 #两个值中间取值为划分点
+        data_left = data.loc[data[a]<val]
+        data_right = data.loc[data[a]>val]
+        ent_left = cal_information_entropy(data_left)
+        ent_right = cal_information_entropy(data_right)
+        result = Ent - len(data_left)/n * ent_left - len(data_right)/n * ent_right
+        select_points.append([val, result])
+    select_points.sort(key = lambda x : x[1], reverse= True) #按照信息增益排序
+    return select_points[0][0], select_points[0][1] #返回信息增益最大的点, 以及对应的信息增益
 
-            left_entropy = calcShannonEnt(np.column_stack((left_subset, left_labels)))
-            right_entropy = calcShannonEnt(np.column_stack((right_subset, right_labels)))
+#获取标签最多的那一类
+def get_most_label(data):
+    data_label = data.iloc[:,-1]
+    label_sort = data_label.value_counts(sort=True)
+    return label_sort.keys()[0]
 
-            prob_left = len(left_subset) / len(features)
-            prob_right = len(right_subset) / len(features)
+#获取最佳划分特征
+def get_best_feature(data):
+    features = data.columns[:-1]
+    res = {}
+    for a in features:
+        if a in continuous_features:
+            temp_val, temp = cal_information_gain_continuous(data, a)
+            res[a] = [temp_val, temp]
+        else:
+            temp = cal_information_gain(data, a)
+            res[a] = [-1, temp] #离散值没有划分点，用-1代替
 
-            new_info_gain = calcShannonEnt(np.column_stack((features, labels))) - (
-                    prob_left * left_entropy + prob_right * right_entropy
-            )
-            if j == 0:
-                info_gain = new_info_gain
-                divide = new_divide
-            elif new_info_gain > info_gain:
-                info_gain = new_info_gain
-                divide = new_divide
-        division.append(divide)
-        processed_feature.append(np.where(features[:, i] <= divide, 0, 1))
-    processed_feature = np.array(processed_feature).T
-    processed_dataset = np.column_stack((processed_feature, labels))
-    return processed_dataset, division
+    res = sorted(res.items(),key=lambda x:x[1][1],reverse=True)
+    return res[0][0],res[0][1][0]
 
+#将数据转化为（属性值：数据）的元组形式返回，并删除之前的特征列，只针对离散数据
+def drop_exist_feature(data, best_feature):
+    attr = pd.unique(data[best_feature])
+    new_data = [(nd, data[data[best_feature] == nd]) for nd in attr]
+    new_data = [(n[0], n[1].drop([best_feature], axis=1)) for n in new_data]
+    return new_data
 
-def calcShannonEnt(dataset):
-    numEntries = len(dataset)
-    labelCounts = {}
-    for featVec in dataset:
-        currentLabel = featVec[-1]
-        if currentLabel not in labelCounts.keys():
-            labelCounts[currentLabel] = 0
-        labelCounts[currentLabel] += 1
-    shannonEnt = 0.0
-    for key in labelCounts:
-        prob = float(labelCounts[key]) / numEntries
-        shannonEnt -= prob * log(prob, 2)
-    return shannonEnt
+#创建决策树
+def create_tree(data):
+    data_label = data.iloc[:,-1]
+    if len(data_label.value_counts()) == 1: #只有一类
+        return data_label.values[0]
+    if all(len(data[i].value_counts()) == 1 for i in data.iloc[:,:-1].columns): #所有数据的特征值一样，选样本最多的类作为分类结果
+        return get_most_label(data)
+    best_feature, best_feature_val = get_best_feature(data) #根据信息增益得到的最优划分特征
+    if best_feature in continuous_features: #连续值
+        node_name = best_feature + '<' + str(best_feature_val)
+        Tree = {node_name:{}} #用字典形式存储决策树
+        Tree[node_name]['是'] = create_tree(data.loc[data[best_feature] < best_feature_val])
+        Tree[node_name]['否'] = create_tree(data.loc[data[best_feature] > best_feature_val])
+    else:
+        Tree = {best_feature:{}}
+        exist_vals = pd.unique(data[best_feature])  # 当前数据下最佳特征的取值
+        if len(exist_vals) != len(column_count[best_feature]):  # 如果特征的取值相比于原来的少了
+            no_exist_attr = set(column_count[best_feature]) - set(exist_vals)  # 少的那些特征
+            for no_feat in no_exist_attr:
+                Tree[best_feature][no_feat] = get_most_label(data)  # 缺失的特征分类为当前类别最多的
+        for item in drop_exist_feature(data, best_feature):  # 根据特征值的不同递归创建决策树
+            Tree[best_feature][item[0]] = create_tree(item[1])
+    return Tree
 
-def splitDataSet(dataset, axis, value):
-    retDataSet = []
-    for featVec in dataset:
-        if featVec[axis] == value:
-            reducedFeatVec = featVec[:axis]
-            reducedFeatVec.extend(featVec[axis + 1:])
-            retDataSet.append(reducedFeatVec)
-    return retDataSet #去掉value对应特征
-
-def chooseBestFeatureToSplit(dataset):
-    numFeatures = len(dataset[0]) - 1 #特征数
-    baseEntropy = calcShannonEnt(dataset) #数据集的熵
-    bestInfoGain = 0.0 #最佳信息增益
-    bestFeature = -1 #最佳特征
-    for i in range(numFeatures):
-        featList = [example[i] for example in dataset] #第i个特征的所有值
-        uniqueVals = set(featList) #获取单个特征
-        newEntropy = 0.0
-        for value in uniqueVals:
-            subDataSet = splitDataSet(dataset,i,value) #划分数据集
-            prob = len(subDataSet) / float(len(dataset)) #子集中概率
-            newEntropy += prob * calcShannonEnt(subDataSet)
-        infoGain = baseEntropy - newEntropy
-        if (infoGain > bestInfoGain):
-            bestInfoGain = infoGain
-            bestFeature = i
-    return bestFeature #返回最佳特征
-
-def majorityCnt(classList):
-    classCount = {}
-    for vote in classList:
-        if vote not in classCount.keys():
-            classCount[vote] = 0
-        classCount[vote] += 1
-    sortedClassCount = sorted(classCount.items(), key=operator.itemgetter(1), reverse=True)
-    return sortedClassCount[0][0] #返回出现次数最多的类别标签
-
-
-def createTree(dataSet, labels, featLabels):
-    classList = [example[-1] for example in dataSet]  # 取分类标签
-    if classList.count(classList[0]) == len(classList):  # 如果类别完全相同则停止继续划分
-        return classList[0]
-    if len(dataSet[0]) == 1 or len(labels) == 0:  # 遍历完所有特征时返回出现次数最多的类标签
-        return majorityCnt(classList)
-    bestFeat = chooseBestFeatureToSplit(dataSet)  # 选择最优特征
-    bestFeatLabel = labels[bestFeat]  # 最优特征的标签
-    featLabels.append(bestFeatLabel)
-    myTree = {bestFeatLabel: {}}  # 根据最优特征的标签生成树
-    del (labels[bestFeat])  # 删除已经使用特征标签
-    featValues = [example[bestFeat] for example in dataSet]  # 得到训练集中所有最优特征的属性值
-    uniqueVals = set(featValues)  # 去掉重复的属性值
-    for value in uniqueVals:  # 遍历特征，创建决策树。
-        subLabels = labels[:]
-        myTree[bestFeatLabel][value] = createTree(splitDataSet(dataSet, bestFeat, value), subLabels, featLabels)
-    return myTree
-
+#根据创建的决策树进行分类
+def predict(Tree , test_data):
+    first_feature = list(Tree.keys())[0]
+    if (feature_name:= first_feature.split('<')[0]) in continuous_features:
+        second_dict = Tree[first_feature]
+        val = float(first_feature.split('<')[-1])
+        input_first = test_data.get(feature_name)
+        if input_first < val:
+            input_value = second_dict['是']
+        else:
+            input_value = second_dict['否']
+    else:
+        second_dict = Tree[first_feature]
+        input_first = test_data.get(first_feature)
+        input_value = second_dict[input_first]
+    if isinstance(input_value , dict): #判断分支还是不是字典
+        class_label = predict(input_value, test_data)
+    else:
+        class_label = input_value
+    return class_label
 
 if __name__ == '__main__':
-    # dataSet = [[0, 0, 0, 0, 'no'],  # 数据集
-    #            [0, 0, 0, 1, 'no'],
-    #            [0, 1, 0, 1, 'yes'],
-    #            [0, 1, 1, 0, 'yes'],
-    #            [0, 0, 0, 0, 'no'],
-    #            [1, 0, 0, 0, 'no'],
-    #            [1, 0, 0, 1, 'no'],
-    #            [1, 1, 1, 1, 'yes'],
-    #            [1, 0, 1, 2, 'yes'],
-    #            [1, 0, 1, 2, 'yes'],
-    #            [2, 0, 1, 2, 'yes'],
-    #            [2, 0, 1, 1, 'yes'],
-    #            [2, 1, 0, 1, 'yes'],
-    #            [2, 1, 0, 2, 'yes'],
-    #            [2, 0, 0, 0, 'no']]
-    #
-    # labels = ['年龄', '有工作', '有自己的房子', '信贷情况']  # 特征标签
-    # labels1 = ['放贷', '不放贷']
-    # featLabels = []
-    # myTree = createTree(dataSet, labels, featLabels)
-    # print(myTree)
-    dataset = []
-    division = []
-    dataset, division = preprocessDataSet('traindata.txt')
-    print(dataset)
-    print(division)
-    labels = ['a1', 'b2', 'c3', 'd4']
-    labels1 = ['0', '1', '2']
-    featLabels = []
-    # myTree = createTree(dataset, labels, featLabels)
-    # print(myTree)
+    data = pd.read_csv('traindata.txt')
+    # 统计每个特征的取值情况作为全局变量
+    column_count = dict([(ds, list(pd.unique(data[ds]))) for ds in data.iloc[:, :-1].columns])
+
+    test = cal_information_gain_continuous(data, '密度')
+    continuous_features = ['密度', '含糖率']  #先标注连续值
+    dicision_tree = create_tree(data)
+    print(dicision_tree)
+    test_data =  {'色泽':'青绿','根蒂':'蜷缩','敲声':'浊响','纹理':'清晰','脐部':'凹陷','触感':'硬滑','密度':0.51,'含糖率':0.3}
+    result = predict(dicision_tree, test_data)
+    print('预测结果为:{}'.format('好瓜' if result == 1 else '坏瓜'))
