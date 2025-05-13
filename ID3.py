@@ -136,11 +136,11 @@ def majorityCnt(classList):
     return sortedClassCount[0][0] #返回出现次数最多的类别标签
 
 
-def createTree(dataSet, labels, featLabels):
+def createTree(dataSet, labels, featLabels, depth = 0, max_depth = 5):
     classList = [example[-1] for example in dataSet]  # 取分类标签
     if classList.count(classList[0]) == len(classList):  # 如果类别完全相同则停止继续划分
         return classList[0]
-    if len(dataSet[0]) == 1 or len(labels) == 0:  # 遍历完所有特征时返回出现次数最多的类标签
+    if len(dataSet[0]) == 1 or len(labels) == 0 or depth >= max_depth:  # 遍历完所有特征时返回出现次数最多的类标签
         return majorityCnt(classList)
     bestFeat, bestDivison = chooseBestFeatureToSplit(dataSet)  # 选择最优特征
     bestFeatLabel = labels[bestFeat]  # 最优特征的标签
@@ -153,8 +153,8 @@ def createTree(dataSet, labels, featLabels):
     #     subLabels = labels[:]
     #     myTree[bestFeatLabel][value] = createTree(splitDataSet(dataSet, bestFeat, value), subLabels, featLabels)
     dataSet = np.array(dataSet)
-    myTree[bestFeatLabel]['<=' + str(bestDivison)] = createTree(splitDataSet(dataSet[dataSet[:, bestFeat] <= bestDivison], bestFeat), labels[:], featLabels)
-    myTree[bestFeatLabel]['>' + str(bestDivison)] = createTree(splitDataSet(dataSet[dataSet[:, bestFeat] > bestDivison], bestFeat), labels[:], featLabels)
+    myTree[bestFeatLabel]['<=' + str(bestDivison)] = createTree(splitDataSet(dataSet[dataSet[:, bestFeat] <= bestDivison], bestFeat), labels[:], featLabels, depth+1, max_depth)
+    myTree[bestFeatLabel]['>' + str(bestDivison)] = createTree(splitDataSet(dataSet[dataSet[:, bestFeat] > bestDivison], bestFeat), labels[:], featLabels, depth+1, max_depth)
     return myTree
 
 
