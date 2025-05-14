@@ -1,22 +1,15 @@
 import matplotlib.pyplot as plt
 
-# Define global variables for tree plotting
 decision_node = dict(boxstyle="sawtooth", fc="0.8")
 leaf_node = dict(boxstyle="round4", fc="0.8")
 arrow_args = dict(arrowstyle="<-")
 
 def plot_node(node_text, center_pt, parent_pt, node_type):
-    """
-    Plot a single node with an arrow pointing to it.
-    """
     plt.annotate(node_text, xy=parent_pt, xycoords='axes fraction',
                  xytext=center_pt, textcoords='axes fraction',
                  va="center", ha="center", bbox=node_type, arrowprops=arrow_args)
 
 def get_num_leafs(tree):
-    """
-    Get the number of leaf nodes in the tree.
-    """
     num_leafs = 0
     root = list(tree.keys())[0]
     child_nodes = tree[root]
@@ -28,9 +21,6 @@ def get_num_leafs(tree):
     return num_leafs
 
 def get_tree_depth(tree):
-    """
-    Get the depth of the tree.
-    """
     max_depth = 0
     root = list(tree.keys())[0]
     child_nodes = tree[root]
@@ -43,17 +33,11 @@ def get_tree_depth(tree):
     return max_depth
 
 def plot_mid_text(center_pt, parent_pt, text):
-    """
-    Plot text in the middle of a branch.
-    """
     x_mid = (parent_pt[0] + center_pt[0]) / 2.0
     y_mid = (parent_pt[1] + center_pt[1]) / 2.0
     plt.text(x_mid, y_mid, text, va="center", ha="center", rotation=30)
 
 def plot_tree(tree, parent_pt, node_text):
-    """
-    Recursively plot the tree.
-    """
     num_leafs = get_num_leafs(tree)
     root = list(tree.keys())[0]
     center_pt = (plot_tree.x_off + (1.0 + float(num_leafs)) / 2.0 / plot_tree.total_w, plot_tree.y_off)
@@ -71,9 +55,6 @@ def plot_tree(tree, parent_pt, node_text):
     plot_tree.y_off = plot_tree.y_off + 1.0 / plot_tree.total_d
 
 def create_plot(tree):
-    """
-    Create the plot for the decision tree.
-    """
     fig = plt.figure(1, facecolor='white')
     fig.clf()
     axprops = dict(xticks=[], yticks=[])
