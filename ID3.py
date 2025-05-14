@@ -2,6 +2,7 @@ import operator
 import matplotlib
 from math import log
 import numpy as np
+import plot
 
 def preprocessDataSet(file_path): #将数据集中原本的离散型变量更换为离散型变量
     dataset = []
@@ -232,11 +233,12 @@ if __name__ == '__main__':
     dataset = np.array(dataset)
 
     print(dataset)
-    labels = ['a1', 'b2', 'c3', 'd4']
+    labels = ['Feature1', 'Feature2', 'Feature3', 'Feature4']
     labels1 = ['0', '1', '2']
     featLabels = []
     myTree = createTree(dataset, labels, featLabels)
     print(myTree)
+    plot.create_plot(myTree)
 
 # 加载测试数据
     test_data = []
@@ -245,7 +247,7 @@ if __name__ == '__main__':
             test_data.append([float(x) for x in line.strip().split('\t')])
 
     # 决策树对应的特征标签
-    feature_labels = ['a1', 'b2', 'c3', 'd4']
+    feature_labels = ['Feature1', 'Feature2', 'Feature3', 'Feature4']
 
     # 计算正确率
     accuracy = calculate_accuracy(myTree, feature_labels, test_data)
