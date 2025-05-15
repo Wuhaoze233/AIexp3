@@ -26,7 +26,7 @@ def splitDataSet(dataset, axis):
             reducedFeatVec = reducedFeatVec.tolist()
         reducedFeatVec.extend(featVec[axis + 1:])
         retDataSet.append(reducedFeatVec)
-    return retDataSet #去掉value对应特征
+    return retDataSet
 
 def chooseBestFeatureToSplit(dataset):
     numFeatures = len(dataset[0]) - 1 #特征数
@@ -44,8 +44,6 @@ def chooseBestFeatureToSplit(dataset):
             new_divide = (feature[j] + feature[j + 1]) / 2
             left_subset = dataset[features[:, i] <= new_divide]
             right_subset = dataset[features[:, i] > new_divide]
-            left_labels = left_subset[:, -1]
-            right_labels = right_subset[:, -1]
 
             left_entropy = calcShannonEnt(left_subset)
             right_entropy = calcShannonEnt(right_subset)
